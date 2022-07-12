@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 in vec2 v_texCoords;
 uniform sampler2D u_texture;
@@ -6,6 +6,8 @@ uniform sampler2D u_texture;
 uniform float totalTime;
 uniform float dt;
 uniform vec2 frameDimensions;
+
+layout(location=0) out vec4 fragColor;
 
 //returns the state of the current texel + x,y. We just need the states "alive" or "dead".
 //so we just return an integer 0 or 1
@@ -35,7 +37,7 @@ void main() {
     //if we have 3 living neighbours the current cell will live, if there are two,
     //we keep the current state. Otherwise the cell is dead.
     
-    vec4 newColor;
+    vec4 newColor = vec4(0.012345678f, 0, 0, 1);
     
     float current = float(get(0, 0));
     
@@ -52,5 +54,5 @@ void main() {
         }
     }
     
-    gl_FragColor = newColor;
+    fragColor = newColor;
 }
