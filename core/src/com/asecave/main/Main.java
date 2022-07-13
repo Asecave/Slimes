@@ -16,20 +16,32 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.ScreenUtils;
 
 public class Main extends ApplicationAdapter {
 
-	private FrameBuffer screenStateFbo;
-	private FrameBuffer screenOutputFbo;
-	private FrameBuffer agentStateFbo;
-	private FrameBuffer agentOutputFbo;
-	
-	private SpriteBatch batch;
-	private Texture tex;
-	private ShaderProgram screenShader;
-	private OrthographicCamera cam;
+	private FrameBuffer[] screenStateFbo;
+	private FrameBuffer[] screenOutputFbo;
+	private FrameBuffer[] agentStateFbo;
+	private FrameBuffer[] agentOutputFbo;
 
+	private SpriteBatch batch;
+	private ShaderProgram screenShader;
+	private ShaderProgram renderShader;
+	private OrthographicCamera cam;
+	private Texture blank;
+
+	Texture deb;
+	
 	private float scale = 4f;
+	
+	static Color encode(int v) {
+		float r = ((v & 0xff000000) >>> 24) / 255f;
+		float g = ((v & 0x00ff0000) >>> 16) / 255f;
+		float b = ((v & 0x0000ff00) >>> 8) / 255f;
+		float a = ((v & 0x000000ff)) / 255f;
+		return new Color(r, g, b, a);
+	}
 
 	@Override
 	public void create() {
@@ -39,8 +51,8 @@ public class Main extends ApplicationAdapter {
 		Pixmap pix = new Pixmap((int) (Gdx.graphics.getWidth() / scale), (int) (Gdx.graphics.getHeight() / scale),
 				Format.RGB888);
 
-		Random r = new Random();
-		pix.setColor(Color.WHITE);
+		Random r = new Random(1);
+		pix.setColor(0xff00ffff);
 		for (int x = 0; x < pix.getWidth(); x++) {
 			for (int y = 0; y < pix.getHeight(); y++) {
 				if (r.nextFloat() < 0.2f) {
@@ -48,25 +60,35 @@ public class Main extends ApplicationAdapter {
 				}
 			}
 		}
+		Texture tex = new Texture(pix);
 
-		tex = new Texture(pix);
+		screenStateFbo = new FrameBuffer[3];
+		screenOutputFbo = new FrameBuffer[3];
+		for (int i = 0; i < screenStateFbo.length; i++) {
+			screenStateFbo[i] = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
+			screenOutputFbo[i] = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
 
-		screenStateFbo = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
-		screenOutputFbo = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
+			screenStateFbo[i].begin();
+			batch.begin();
+			batch.draw(tex, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+			batch.end();
+			screenStateFbo[i].end();
+		}
 
-		agentStateFbo = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
+		tex.dispose();
 
-		screenStateFbo.begin();
-		batch.begin();
-		batch.draw(tex, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		batch.end();
-		screenStateFbo.end();
+		blank = new Texture(1, 1, Format.RGB888);
 
 		ShaderProgram.pedantic = false;
 		screenShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
-				Gdx.files.internal("shaders/slimeScreen.frag"));
+				Gdx.files.internal("shaders/screen.frag"));
 		if (!screenShader.isCompiled()) {
 			System.out.println(screenShader.getLog());
+		}
+		renderShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
+				Gdx.files.internal("shaders/render.frag"));
+		if (!renderShader.isCompiled()) {
+			System.out.println(renderShader.getLog());
 		}
 
 		cam = new OrthographicCamera();
@@ -79,21 +101,31 @@ public class Main extends ApplicationAdapter {
 		cam.update();
 
 		screenShader.bind();
-		screenShader.setUniformf("dt", Gdx.graphics.getDeltaTime());
-		screenShader.setUniformf("frameDimensions", new Vector2(screenStateFbo.getWidth(), screenStateFbo.getHeight()));
+		screenShader.setUniformf("frameDimensions",
+				new Vector2(screenStateFbo[0].getWidth(), screenStateFbo[0].getHeight()));
 
 		step(screenStateFbo, screenOutputFbo, screenShader);
-		
+
+		renderShader.bind();
+		for (int i = 0; i < screenOutputFbo.length; i++) {
+			if (scale > 1f) {
+				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+			} else {
+				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
+			}
+		}
+		screenOutputFbo[0].getColorBufferTexture().bind(1);
+		renderShader.setUniformi("channelR", 1);
+		screenOutputFbo[1].getColorBufferTexture().bind(2);
+		renderShader.setUniformi("channelG", 2);
+		screenOutputFbo[2].getColorBufferTexture().bind(3);
+		renderShader.setUniformi("channelB", 3);
+		renderShader.setUniformf("frameDimensions",
+				new Vector2(screenStateFbo[0].getWidth(), screenStateFbo[0].getHeight()));
+		batch.setShader(renderShader);
 		batch.setProjectionMatrix(cam.combined);
 		batch.begin();
-		TextureRegion t = new TextureRegion(screenOutputFbo.getColorBufferTexture());
-		t.flip(false, true);
-		if (scale > 1f) {
-			t.getTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-		} else {
-			t.getTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
-		}
-		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		batch.draw(blank, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		batch.end();
 
 		if (Gdx.input.isKeyJustPressed(Keys.ESCAPE)) {
@@ -101,34 +133,36 @@ public class Main extends ApplicationAdapter {
 		}
 	}
 
-	private void step(FrameBuffer state, FrameBuffer output, ShaderProgram shader) {
-		
-		batch.setShader(shader);
+	private void step(FrameBuffer[] state, FrameBuffer[] output, ShaderProgram shader) {
 
-		output.begin();
-		batch.begin();
-		TextureRegion t = new TextureRegion(state.getColorBufferTexture());
-		t.flip(false, true);
-		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		batch.end();
-		output.end();
+		for (int i = 0; i < state.length; i++) {
+			batch.setShader(shader);
+			output[i].begin();
+			batch.begin();
+			TextureRegion t = new TextureRegion(state[i].getColorBufferTexture());
+			t.flip(false, true);
+			batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+			batch.end();
+			output[i].end();
 
-		batch.setShader(null);
-		state.begin();
-		batch.begin();
-		t = new TextureRegion(output.getColorBufferTexture());
-		t.flip(false, true);
-		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		batch.end();
-		state.end();
+			batch.setShader(null);
+			state[i].begin();
+			batch.begin();
+			t = new TextureRegion(output[i].getColorBufferTexture());
+			t.flip(false, true);
+			batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+			batch.end();
+			state[i].end();
+		}
 	}
 
 	@Override
 	public void dispose() {
 		batch.dispose();
-		screenStateFbo.dispose();
-		screenOutputFbo.dispose();
-		tex.dispose();
+		for (int i = 0; i < screenStateFbo.length; i++) {
+			screenStateFbo[i].dispose();
+			screenOutputFbo[i].dispose();
+		}
 	}
 
 	@Override
