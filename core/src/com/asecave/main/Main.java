@@ -23,59 +23,53 @@ public class Main extends ApplicationAdapter {
 
 	private FrameBuffer[] screenStateFbo;
 	private FrameBuffer[] screenOutputFbo;
-	private FrameBuffer[] agentStateFbo;
-	private FrameBuffer[] agentOutputFbo;
+	private FrameBuffer agentStateFbo;
+	private FrameBuffer agentOutputFbo;
+	private final int agentCount = 100;
 
 	private SpriteBatch batch;
 	private ShaderProgram screenShader;
 	private ShaderProgram renderShader;
+	private ShaderProgram agentShader;
 	private OrthographicCamera cam;
 	private Texture blank;
 
-	Texture deb;
-	
-	private float scale = 5f;
-	
-	static Color encode(int v) {
-		float r = ((v & 0xff000000) >>> 24) / 255f;
-		float g = ((v & 0x00ff0000) >>> 16) / 255f;
-		float b = ((v & 0x0000ff00) >>> 8) / 255f;
-		float a = ((v & 0x000000ff)) / 255f;
-		return new Color(r, g, b, a);
-	}
+	private float scale = 10f;
 
 	@Override
 	public void create() {
 
 		batch = new SpriteBatch();
 
-		Pixmap pix = new Pixmap((int) (Gdx.graphics.getWidth() / scale), (int) (Gdx.graphics.getHeight() / scale),
-				Format.RGB888);
-
-		Random r = new Random(1);
-		pix.setColor(0xffffffff);
-		for (int x = 0; x < pix.getWidth(); x++) {
-			for (int y = 0; y < pix.getHeight(); y++) {
-				if (r.nextFloat() < 0.2f) {
-					pix.drawPixel(x, y);
-				}
-			}
-		}
-		Texture tex = new Texture(pix);
+		int width = (int) (Gdx.graphics.getWidth() / scale);
+		int height = (int) (Gdx.graphics.getHeight() / scale);
 
 		screenStateFbo = new FrameBuffer[3];
 		screenOutputFbo = new FrameBuffer[3];
 		for (int i = 0; i < screenStateFbo.length; i++) {
-			screenStateFbo[i] = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
-			screenOutputFbo[i] = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
-			
-			screenStateFbo[i].begin();
-			batch.begin();
-			batch.draw(tex, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-			batch.end();
-			screenStateFbo[i].end();
+			screenStateFbo[i] = new FrameBuffer(Format.RGB888, width, height, false);
+			screenOutputFbo[i] = new FrameBuffer(Format.RGB888, width, height, false);
 		}
 
+		agentStateFbo = new FrameBuffer(Format.RGB888, agentCount, 2, false);
+		agentOutputFbo = new FrameBuffer(Format.RGB888, agentCount, 2, false);
+
+		Pixmap pix = new Pixmap(agentStateFbo.getWidth(), agentStateFbo.getHeight(), Format.RGB888);
+		for (int x = 0; x < agentStateFbo.getWidth(); x++) {
+			pix.drawPixel(x, 0, ((width / 2) << 8) + 0xff);
+			pix.drawPixel(x, 1, ((height / 2) << 8) + 0xff);
+		}
+		
+		Texture tex = new Texture(pix);
+		
+		agentStateFbo.begin();
+		batch.begin();
+		TextureRegion tr = new TextureRegion(tex);
+		tr.flip(false, true);
+		batch.draw(tr, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		batch.end();
+		agentStateFbo.end();
+		
 		pix.dispose();
 		tex.dispose();
 
@@ -94,6 +88,12 @@ public class Main extends ApplicationAdapter {
 			System.out.println("render:");
 			System.out.println(renderShader.getLog());
 		}
+		agentShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
+				Gdx.files.internal("shaders/agent.frag"));
+		if (!agentShader.isCompiled()) {
+			System.out.println("agent:");
+			System.out.println(renderShader.getLog());
+		}
 
 		cam = new OrthographicCamera();
 		cam.position.add(Gdx.graphics.getWidth() / 2, Gdx.graphics.getHeight() / 2, 0f);
@@ -101,20 +101,56 @@ public class Main extends ApplicationAdapter {
 
 	@Override
 	public void render() {
-		
-		cam.update();
 
+		cam.update();
+		
+		agentShader.bind();
+		agentShader.setUniformf("dt", Gdx.graphics.getDeltaTime());
+		agentShader.setUniformf("texDimensions",
+				new Vector2(agentStateFbo.getWidth(), agentStateFbo.getHeight()));
+		
+		step(agentStateFbo, agentOutputFbo, agentShader);
+		
 		screenShader.bind();
+		screenShader.setUniformf("dt", Gdx.graphics.getDeltaTime());
 		screenShader.setUniformf("frameDimensions",
 				new Vector2(screenStateFbo[0].getWidth(), screenStateFbo[0].getHeight()));
-		
-		step(screenStateFbo, screenOutputFbo, screenShader);
-		
+		screenShader.setUniformf("agentDimensions",
+				new Vector2(agentStateFbo.getWidth(), agentStateFbo.getHeight()));
+		screenShader.setUniformi("agentCount", agentCount);
+		agentStateFbo.getColorBufferTexture().bind(1);
+		screenShader.setUniformi(1, 1);
+		Gdx.graphics.getGL20().glActiveTexture(GL20.GL_TEXTURE0);
+
+		for (int i = 0; i < screenStateFbo.length; i++) {
+			step(screenStateFbo[i], screenOutputFbo[i], screenShader);
+		}
+
 		renderCombined(screenOutputFbo);
 
 		if (Gdx.input.isKeyJustPressed(Keys.ESCAPE)) {
 			Gdx.app.exit();
 		}
+	}
+	
+	private void step(FrameBuffer state, FrameBuffer output, ShaderProgram shader) {
+		batch.setShader(shader);
+		output.begin();
+		batch.begin();
+		TextureRegion t = new TextureRegion(state.getColorBufferTexture());
+		t.flip(false, true);
+		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		batch.end();
+		output.end();
+
+		batch.setShader(null);
+		state.begin();
+		batch.begin();
+		t = new TextureRegion(output.getColorBufferTexture());
+		t.flip(false, true);
+		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		batch.end();
+		state.end();
 	}
 
 	private void renderCombined(FrameBuffer[] output) {
@@ -126,42 +162,18 @@ public class Main extends ApplicationAdapter {
 				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
 			}
 			screenOutputFbo[i].getColorBufferTexture().bind(i + 1);
-			renderShader.setUniformf(i + 1, i + 1);
+			renderShader.setUniformi(i + 1, i + 1);
 		}
-		batch.setShader(renderShader);
 		Gdx.graphics.getGL20().glActiveTexture(GL20.GL_TEXTURE0);
+		batch.setShader(renderShader);
 		batch.begin();
 		batch.draw(blank, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		batch.end();
 	}
 
-	private void step(FrameBuffer[] state, FrameBuffer[] output, ShaderProgram shader) {
-
-		for (int i = 0; i < state.length; i++) {
-			
-			batch.setShader(shader);
-			output[i].begin();
-			batch.begin();
-			TextureRegion t = new TextureRegion(state[i].getColorBufferTexture());
-			t.flip(false, true);
-			batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-			batch.end();
-			output[i].end();
-
-			batch.setShader(null);
-			state[i].begin();
-			batch.begin();
-			t = new TextureRegion(output[i].getColorBufferTexture());
-			t.flip(false, true);
-			batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-			batch.end();
-			state[i].end();
-		}
-	}
-	
-	private void dumpPixel() {
-		Pixmap pixmap = Pixmap.createFromFrameBuffer(0, 0, 1, 1);
-		System.out.println(new Color(pixmap.getPixel(0, 0)));
+	private void dumpPixel(int x, int y) {
+		Pixmap pixmap = Pixmap.createFromFrameBuffer(0, 0, x + 1, y  + 1);
+		System.out.println(new Color(pixmap.getPixel(x, y)));
 	}
 
 	@Override
