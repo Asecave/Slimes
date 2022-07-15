@@ -6,6 +6,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Pixmap.Format;
@@ -24,16 +25,19 @@ public class Main extends ApplicationAdapter {
 	private FrameBuffer[] screenOutputFbo;
 	private FrameBuffer[] agentStateFbo;
 	private FrameBuffer[] agentOutputFbo;
+	private FrameBuffer singleChannelFbo;
+	private FrameBuffer renderFbo;
 
 	private SpriteBatch batch;
 	private ShaderProgram screenShader;
-	private ShaderProgram renderShader;
+	private ShaderProgram mergeChannelShader;
+	private ShaderProgram singleChannelShader;
 	private OrthographicCamera cam;
 	private Texture blank;
 
 	Texture deb;
 	
-	private float scale = 4f;
+	private float scale = 5f;
 	
 	static Color encode(int v) {
 		float r = ((v & 0xff000000) >>> 24) / 255f;
@@ -52,7 +56,7 @@ public class Main extends ApplicationAdapter {
 				Format.RGB888);
 
 		Random r = new Random(1);
-		pix.setColor(0xff00ffff);
+		pix.setColor(0xffffffff);
 		for (int x = 0; x < pix.getWidth(); x++) {
 			for (int y = 0; y < pix.getHeight(); y++) {
 				if (r.nextFloat() < 0.2f) {
@@ -67,7 +71,7 @@ public class Main extends ApplicationAdapter {
 		for (int i = 0; i < screenStateFbo.length; i++) {
 			screenStateFbo[i] = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
 			screenOutputFbo[i] = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
-
+			
 			screenStateFbo[i].begin();
 			batch.begin();
 			batch.draw(tex, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
@@ -75,6 +79,10 @@ public class Main extends ApplicationAdapter {
 			screenStateFbo[i].end();
 		}
 
+		singleChannelFbo = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
+		renderFbo = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
+
+		pix.dispose();
 		tex.dispose();
 
 		blank = new Texture(1, 1, Format.RGB888);
@@ -83,12 +91,20 @@ public class Main extends ApplicationAdapter {
 		screenShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
 				Gdx.files.internal("shaders/screen.frag"));
 		if (!screenShader.isCompiled()) {
+			System.out.println("Screen:");
 			System.out.println(screenShader.getLog());
 		}
-		renderShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
-				Gdx.files.internal("shaders/render.frag"));
-		if (!renderShader.isCompiled()) {
-			System.out.println(renderShader.getLog());
+		mergeChannelShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
+				Gdx.files.internal("shaders/mergechannel.frag"));
+		if (!mergeChannelShader.isCompiled()) {
+			System.out.println("mergeChannel:");
+			System.out.println(mergeChannelShader.getLog());
+		}
+		singleChannelShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
+				Gdx.files.internal("shaders/singlechannel.frag"));
+		if (!singleChannelShader.isCompiled()) {
+			System.out.println("singleChannel:");
+			System.out.println(singleChannelShader.getLog());
 		}
 
 		cam = new OrthographicCamera();
@@ -97,7 +113,7 @@ public class Main extends ApplicationAdapter {
 
 	@Override
 	public void render() {
-
+		
 		cam.update();
 
 		screenShader.bind();
@@ -106,26 +122,45 @@ public class Main extends ApplicationAdapter {
 
 		step(screenStateFbo, screenOutputFbo, screenShader);
 
-		renderShader.bind();
-		for (int i = 0; i < screenOutputFbo.length; i++) {
-			if (scale > 1f) {
-				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-			} else {
-				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
-			}
-		}
-		screenOutputFbo[0].getColorBufferTexture().bind(1);
-		renderShader.setUniformi("channelR", 1);
-		screenOutputFbo[1].getColorBufferTexture().bind(2);
-		renderShader.setUniformi("channelG", 2);
-		screenOutputFbo[2].getColorBufferTexture().bind(3);
-		renderShader.setUniformi("channelB", 3);
-		renderShader.setUniformf("frameDimensions",
-				new Vector2(screenStateFbo[0].getWidth(), screenStateFbo[0].getHeight()));
-		batch.setShader(renderShader);
+//		for (int i = 0; i < screenOutputFbo.length; i++) {
+//			if (scale > 1f) {
+//				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+//			} else {
+//				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
+//			}
+//		}
+
+		singleChannelShader.bind();
+		singleChannelShader.setUniformi("channel", 2);
+		singleChannelFbo.begin();
+		batch.setShader(singleChannelShader);
+		batch.begin();
+		TextureRegion t = new TextureRegion(screenOutputFbo[1].getColorBufferTexture());
+		t.flip(false, true);
+		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		batch.end();
+		singleChannelFbo.end();
+		
+		
+		
+		mergeChannelShader.bind();
+		singleChannelFbo.getColorBufferTexture().bind(1);
+		mergeChannelShader.setUniformf(1, 1);
+		mergeChannelShader.setUniformi("clear", 1);
+		batch.setShader(mergeChannelShader);
+		renderFbo.begin();
+		batch.begin();
+		t = new TextureRegion(singleChannelFbo.getColorBufferTexture());
+		t.flip(false, true);
+		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		batch.end();
+		renderFbo.end();
+		
+		batch.setShader(null);
 		batch.setProjectionMatrix(cam.combined);
 		batch.begin();
-		batch.draw(blank, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		Gdx.graphics.getGL20().glActiveTexture(GL20.GL_TEXTURE0);
+		batch.draw(renderFbo.getColorBufferTexture(), 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		batch.end();
 
 		if (Gdx.input.isKeyJustPressed(Keys.ESCAPE)) {

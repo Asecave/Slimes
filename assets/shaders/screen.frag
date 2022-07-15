@@ -1,4 +1,4 @@
-#version 430 core
+#version 460 core
 
 in vec2 v_texCoords;
 uniform sampler2D u_texture;
@@ -40,11 +40,11 @@ vec4 encode(uint v) {
 
 void main() {
 
-	vec4 c = get(0, 0);
+	vec4 c = get(0, -1);
 
 	uint v = decode(c);
 
-//	v -= 100;
+//	v -= 100u;
 
 	vec4 enc = encode(v);
 
