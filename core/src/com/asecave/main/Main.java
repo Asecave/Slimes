@@ -16,8 +16,8 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.utils.ScreenUtils;
 
 public class Main extends ApplicationAdapter {
 
@@ -25,7 +25,7 @@ public class Main extends ApplicationAdapter {
 	private FrameBuffer[] screenOutputFbo;
 	private FrameBuffer agentStateFbo;
 	private FrameBuffer agentOutputFbo;
-	private final int agentCount = 100;
+	private final int agentCount = 1000;
 
 	private SpriteBatch batch;
 	private ShaderProgram screenShader;
@@ -34,7 +34,7 @@ public class Main extends ApplicationAdapter {
 	private OrthographicCamera cam;
 	private Texture blank;
 
-	private float scale = 10f;
+	private float scale = 5f;
 
 	@Override
 	public void create() {
@@ -51,13 +51,18 @@ public class Main extends ApplicationAdapter {
 			screenOutputFbo[i] = new FrameBuffer(Format.RGB888, width, height, false);
 		}
 
-		agentStateFbo = new FrameBuffer(Format.RGB888, agentCount, 2, false);
-		agentOutputFbo = new FrameBuffer(Format.RGB888, agentCount, 2, false);
+		agentStateFbo = new FrameBuffer(Format.RGB888, agentCount, 3, false);
+		agentOutputFbo = new FrameBuffer(Format.RGB888, agentCount, 3, false);
 
+		Random r = new Random();
 		Pixmap pix = new Pixmap(agentStateFbo.getWidth(), agentStateFbo.getHeight(), Format.RGB888);
 		for (int x = 0; x < agentStateFbo.getWidth(); x++) {
-			pix.drawPixel(x, 0, ((width / 2) << 8) + 0xff);
-			pix.drawPixel(x, 1, ((height / 2) << 8) + 0xff);
+			int posX = width / 2;
+			int posY = height / 2;
+			float rotation = r.nextFloat() * MathUtils.PI2;
+			pix.drawPixel(x, 0, ((int) (posX * 1000) << 8) + 0xff);
+			pix.drawPixel(x, 1, ((int) (posY * 1000) << 8) + 0xff);
+			pix.drawPixel(x, 2, ((int) (rotation * 100000) << 8) + 0xff);
 		}
 		
 		Texture tex = new Texture(pix);
@@ -92,7 +97,7 @@ public class Main extends ApplicationAdapter {
 				Gdx.files.internal("shaders/agent.frag"));
 		if (!agentShader.isCompiled()) {
 			System.out.println("agent:");
-			System.out.println(renderShader.getLog());
+			System.out.println(agentShader.getLog());
 		}
 
 		cam = new OrthographicCamera();
@@ -139,6 +144,7 @@ public class Main extends ApplicationAdapter {
 		batch.begin();
 		TextureRegion t = new TextureRegion(state.getColorBufferTexture());
 		t.flip(false, true);
+		t.getTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
 		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		batch.end();
 		output.end();
@@ -148,6 +154,7 @@ public class Main extends ApplicationAdapter {
 		batch.begin();
 		t = new TextureRegion(output.getColorBufferTexture());
 		t.flip(false, true);
+		t.getTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
 		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		batch.end();
 		state.end();

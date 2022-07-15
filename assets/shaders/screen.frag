@@ -12,7 +12,7 @@ layout(binding=1) uniform sampler2D agents;
 
 layout(location=0) out vec4 fragColor;
 
-const float diffuseRate = 20f;
+const float diffuseRate = 0.5f;
 
 const int white = 16777215;
 
@@ -43,13 +43,13 @@ vec3 encode(int v) {
 	return color;
 }
 
-int getScreen(int offsetX, int offsetY) {
+int getScreen(float offsetX, float offsetY) {
 	vec2 coords = v_texCoords.xy + vec2(offsetX, offsetY) / frameDimensions.xy;
 	return decode(texture2D(u_texture, coords).rgb);
 }
 
-int getAgent(int id, int field) {
-	vec2 coords = vec2(id + 0.5f, field + 0.5f) / agentDimensions.xy;
+int getAgent(float id, float field) {
+	vec2 coords = vec2(id, field) / agentDimensions.xy;
 	return decode(texture2D(agents, coords).rgb);
 }
 
@@ -73,8 +73,8 @@ int blur() {
 int drawAgents(int v) {
 	for (int i = 0; i < agentCount; i++) {
 		ivec2 pixel = ivec2(v_texCoords * frameDimensions);
-		int agentX = getAgent(i, 0);
-		int agentY = getAgent(i, 1);
+		int agentX = getAgent(i, 1f) / 1000;
+		int agentY = getAgent(i, 2f) / 1000;
 		if (pixel.x == agentX && pixel.y == agentY) {
 			return white;
 		}

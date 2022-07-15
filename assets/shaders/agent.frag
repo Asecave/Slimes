@@ -8,6 +8,8 @@ uniform vec2 texDimensions;
 
 layout(location=0) out vec4 fragColor;
 
+const float moveSpeed = 1f;
+
 uint hash(uint state) {
 	state ^= 2747636419u;
 	state *= 2654435769u;
@@ -35,20 +37,38 @@ vec3 encode(int v) {
 	return color;
 }
 
-int get(int component) {
-	vec2 coords = v_texCoords.xy + vec2(0f, component) / texDimensions.xy;
+int get(float component) {
+	vec2 coords = v_texCoords.xy + vec2(0f, component - 1) / texDimensions.xy;
 	return decode(texture2D(u_texture, coords).rgb);
 }
 
 void main() {
 
-//	int x = get(0);
-//	int y = get(1);
-//
-//	if (v < 0)
-//		v = 0;
-//
-//	vec3 enc = encode(v);
+	int current = int(v_texCoords.y * texDimensions.y);
 
-	fragColor = texture2D(u_texture, v_texCoords);
+	int v;
+
+	v = get(current);
+	float angle = get(2f) / 1000000f;
+
+	switch (current) {
+	case 0:
+		float directionX = cos(angle);
+		v += int(directionX * moveSpeed * 1000);
+		break;
+	case 1:
+		float directionY = sin(angle);
+		v += int(directionY * moveSpeed * 1000);
+		break;
+	case 2:
+
+		break;
+	}
+
+	if (v < 0)
+		v = 0;
+
+	vec3 enc = encode(v);
+
+	fragColor = vec4(enc, 1f);
 }
