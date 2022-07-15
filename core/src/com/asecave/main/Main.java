@@ -107,7 +107,7 @@ public class Main extends ApplicationAdapter {
 		screenShader.bind();
 		screenShader.setUniformf("frameDimensions",
 				new Vector2(screenStateFbo[0].getWidth(), screenStateFbo[0].getHeight()));
-
+		
 		step(screenStateFbo, screenOutputFbo, screenShader);
 		
 		renderCombined(screenOutputFbo);
@@ -116,7 +116,7 @@ public class Main extends ApplicationAdapter {
 			Gdx.app.exit();
 		}
 	}
-	
+
 	private void renderCombined(FrameBuffer[] output) {
 		renderShader.bind();
 		for (int i = 0; i < output.length; i++) {
@@ -138,6 +138,7 @@ public class Main extends ApplicationAdapter {
 	private void step(FrameBuffer[] state, FrameBuffer[] output, ShaderProgram shader) {
 
 		for (int i = 0; i < state.length; i++) {
+			
 			batch.setShader(shader);
 			output[i].begin();
 			batch.begin();
@@ -156,6 +157,11 @@ public class Main extends ApplicationAdapter {
 			batch.end();
 			state[i].end();
 		}
+	}
+	
+	private void dumpPixel() {
+		Pixmap pixmap = Pixmap.createFromFrameBuffer(0, 0, 1, 1);
+		System.out.println(new Color(pixmap.getPixel(0, 0)));
 	}
 
 	@Override

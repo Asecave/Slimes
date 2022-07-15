@@ -9,20 +9,20 @@ layout(binding=1) uniform sampler2D channelR;
 layout(binding=2) uniform sampler2D channelG;
 layout(binding=3) uniform sampler2D channelB;
 
-uint decode(vec4 v) {
-	return (uint(255 * v.r) << 24) | (uint(255 * v.g) << 16)
-			| (uint(255 * v.b) << 8) | (uint(255 * v.a));
+uint decode(vec3 v) {
+	ivec3 bytes = ivec3(v * 255);
+	return (bytes.r << 16) | (bytes.g << 8) | (bytes.b);
 }
 
 void main() {
 
-	vec4 rawR = texture2D(channelR, v_texCoords.xy);
-	vec4 rawG = texture2D(channelG, v_texCoords.xy);
-	vec4 rawB = texture2D(channelB, v_texCoords.xy);
+	vec3 rawR = texture2D(channelR, v_texCoords.xy).rgb;
+	vec3 rawG = texture2D(channelG, v_texCoords.xy).rgb;
+	vec3 rawB = texture2D(channelB, v_texCoords.xy).rgb;
 
-	float r = decode(rawR) / 4294967295f;
-	float g = decode(rawG) / 4294967295f;
-	float b = decode(rawB) / 4294967295f;
+	float r = decode(rawR) / 16777215f;
+	float g = decode(rawG) / 16777215f;
+	float b = decode(rawB) / 16777215f;
 
 	fragColor = vec4(r, g, b, 1f);
 }
