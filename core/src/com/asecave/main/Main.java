@@ -25,13 +25,10 @@ public class Main extends ApplicationAdapter {
 	private FrameBuffer[] screenOutputFbo;
 	private FrameBuffer[] agentStateFbo;
 	private FrameBuffer[] agentOutputFbo;
-	private FrameBuffer singleChannelFbo;
-	private FrameBuffer renderFbo;
 
 	private SpriteBatch batch;
 	private ShaderProgram screenShader;
-	private ShaderProgram mergeChannelShader;
-	private ShaderProgram singleChannelShader;
+	private ShaderProgram renderShader;
 	private OrthographicCamera cam;
 	private Texture blank;
 
@@ -79,9 +76,6 @@ public class Main extends ApplicationAdapter {
 			screenStateFbo[i].end();
 		}
 
-		singleChannelFbo = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
-		renderFbo = new FrameBuffer(Format.RGB888, tex.getWidth(), tex.getHeight(), false);
-
 		pix.dispose();
 		tex.dispose();
 
@@ -94,17 +88,11 @@ public class Main extends ApplicationAdapter {
 			System.out.println("Screen:");
 			System.out.println(screenShader.getLog());
 		}
-		mergeChannelShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
-				Gdx.files.internal("shaders/mergechannel.frag"));
-		if (!mergeChannelShader.isCompiled()) {
-			System.out.println("mergeChannel:");
-			System.out.println(mergeChannelShader.getLog());
-		}
-		singleChannelShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
-				Gdx.files.internal("shaders/singlechannel.frag"));
-		if (!singleChannelShader.isCompiled()) {
-			System.out.println("singleChannel:");
-			System.out.println(singleChannelShader.getLog());
+		renderShader = new ShaderProgram(Gdx.files.internal("shaders/passthrough.vert"),
+				Gdx.files.internal("shaders/render.frag"));
+		if (!renderShader.isCompiled()) {
+			System.out.println("render:");
+			System.out.println(renderShader.getLog());
 		}
 
 		cam = new OrthographicCamera();
@@ -121,51 +109,30 @@ public class Main extends ApplicationAdapter {
 				new Vector2(screenStateFbo[0].getWidth(), screenStateFbo[0].getHeight()));
 
 		step(screenStateFbo, screenOutputFbo, screenShader);
-
-//		for (int i = 0; i < screenOutputFbo.length; i++) {
-//			if (scale > 1f) {
-//				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-//			} else {
-//				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
-//			}
-//		}
-
-		singleChannelShader.bind();
-		singleChannelShader.setUniformi("channel", 2);
-		singleChannelFbo.begin();
-		batch.setShader(singleChannelShader);
-		batch.begin();
-		TextureRegion t = new TextureRegion(screenOutputFbo[1].getColorBufferTexture());
-		t.flip(false, true);
-		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		batch.end();
-		singleChannelFbo.end();
 		
-		
-		
-		mergeChannelShader.bind();
-		singleChannelFbo.getColorBufferTexture().bind(1);
-		mergeChannelShader.setUniformf(1, 1);
-		mergeChannelShader.setUniformi("clear", 1);
-		batch.setShader(mergeChannelShader);
-		renderFbo.begin();
-		batch.begin();
-		t = new TextureRegion(singleChannelFbo.getColorBufferTexture());
-		t.flip(false, true);
-		batch.draw(t, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		batch.end();
-		renderFbo.end();
-		
-		batch.setShader(null);
-		batch.setProjectionMatrix(cam.combined);
-		batch.begin();
-		Gdx.graphics.getGL20().glActiveTexture(GL20.GL_TEXTURE0);
-		batch.draw(renderFbo.getColorBufferTexture(), 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		batch.end();
+		renderCombined(screenOutputFbo);
 
 		if (Gdx.input.isKeyJustPressed(Keys.ESCAPE)) {
 			Gdx.app.exit();
 		}
+	}
+	
+	private void renderCombined(FrameBuffer[] output) {
+		renderShader.bind();
+		for (int i = 0; i < output.length; i++) {
+			if (scale > 1f) {
+				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+			} else {
+				screenOutputFbo[i].getColorBufferTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
+			}
+			screenOutputFbo[i].getColorBufferTexture().bind(i + 1);
+			renderShader.setUniformf(i + 1, i + 1);
+		}
+		batch.setShader(renderShader);
+		Gdx.graphics.getGL20().glActiveTexture(GL20.GL_TEXTURE0);
+		batch.begin();
+		batch.draw(blank, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		batch.end();
 	}
 
 	private void step(FrameBuffer[] state, FrameBuffer[] output, ShaderProgram shader) {
