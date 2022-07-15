@@ -9,7 +9,7 @@ layout(binding=1) uniform sampler2D channelR;
 layout(binding=2) uniform sampler2D channelG;
 layout(binding=3) uniform sampler2D channelB;
 
-uint decode(vec3 v) {
+int decode(vec3 v) {
 	ivec3 bytes = ivec3(v * 255);
 	return (bytes.r << 16) | (bytes.g << 8) | (bytes.b);
 }
