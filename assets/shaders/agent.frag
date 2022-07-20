@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 
 in vec2 v_texCoords;
 uniform sampler2D u_texture;
@@ -38,7 +38,7 @@ vec3 encode(int v) {
 }
 
 int get(float component) {
-	vec2 coords = v_texCoords.xy + vec2(0f, component - 1) / texDimensions.xy;
+	vec2 coords = v_texCoords.xy + vec2(0f, component - 1f) / texDimensions.xy;
 	return decode(texture2D(u_texture, coords).rgb);
 }
 
@@ -49,7 +49,7 @@ void main() {
 	int v;
 
 	v = get(current);
-	float angle = get(2f) / 1000000f;
+	float angle = get(3f) / 100000f;
 
 	switch (current) {
 	case 0:

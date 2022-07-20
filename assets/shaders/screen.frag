@@ -1,34 +1,20 @@
-#version 460 core
+#version 330 core
 
 in vec2 v_texCoords;
 uniform sampler2D u_texture;
 
 uniform float dt;
 uniform vec2 frameDimensions;
-uniform vec2 agentDimensions;
 uniform int agentCount;
 
-layout(binding=1) uniform sampler2D agents;
+uniform sampler2D agents;
 
 layout(location=0) out vec4 fragColor;
 
-const float diffuseRate = 0.5f;
+const float diffuseRate = 5f;
+const float decayRate = 1f;
 
 const int white = 16777215;
-
-uint hash(uint state) {
-	state ^= 2747636419u;
-	state *= 2654435769u;
-	state ^= state >> 16;
-	state *= 2654435769u;
-	state ^= state >> 16;
-	state *= 2654435769u;
-	return state;
-}
-
-float scaleToRange01(uint state) {
-	return state / 4294967295f;
-}
 
 int decode(vec3 v) {
 	ivec3 bytes = ivec3(v * 255);
@@ -46,11 +32,6 @@ vec3 encode(int v) {
 int getScreen(float offsetX, float offsetY) {
 	vec2 coords = v_texCoords.xy + vec2(offsetX, offsetY) / frameDimensions.xy;
 	return decode(texture2D(u_texture, coords).rgb);
-}
-
-int getAgent(float id, float field) {
-	vec2 coords = vec2(id, field) / agentDimensions.xy;
-	return decode(texture2D(agents, coords).rgb);
 }
 
 int blur() {
@@ -71,20 +52,16 @@ int blur() {
 }
 
 int drawAgents(int v) {
-	for (int i = 0; i < agentCount; i++) {
-		ivec2 pixel = ivec2(v_texCoords * frameDimensions);
-		int agentX = getAgent(i, 1f) / 1000;
-		int agentY = getAgent(i, 2f) / 1000;
-		if (pixel.x == agentX && pixel.y == agentY) {
-			return white;
-		}
-	}
-	return v;
+	int nv = v + decode(texture2D(agents, v_texCoords).rgb);
+	nv = clamp(nv, 0, white);
+	return nv;
 }
 
 void main() {
 
 	int v = blur();
+
+	v -= int(100000 * decayRate);
 
 	v = drawAgents(v);
 
