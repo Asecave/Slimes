@@ -21,7 +21,7 @@ public class Main extends ApplicationAdapter {
 	private FrameBuffer[] screenStateFbo;
 	private FrameBuffer[] screenOutputFbo;
 	private FrameBuffer renderBuffer;
-	private final int agentCount = 10000;
+	private final int agentCount = 20000;
 
 	private SpriteBatch batch;
 	private ShaderProgram screenShader;
@@ -29,7 +29,7 @@ public class Main extends ApplicationAdapter {
 	private OrthographicCamera cam;
 	private Texture blank;
 
-	private float scale = 4f;
+	private float scale = 2f;
 
 	private int width;
 	private int height;

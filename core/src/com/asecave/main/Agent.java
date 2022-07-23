@@ -19,7 +19,7 @@ public class Agent {
 	public static int height;
 	public static Pixmap screen;
 	
-	private final static float SENSOR_ANGLE_DEG = 45f;
+	private final static float SENSOR_ANGLE_DEG = 20f;
 	private final static float SENSOR_OFFSET = 10f;
 	private final static int SENSOR_SIZE = 1;
 	private final static float TURN_SPEED = 0.2f;
