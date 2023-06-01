@@ -20,9 +20,9 @@ public class Agent {
 	public static Pixmap screen;
 	
 	private final static float SENSOR_ANGLE_DEG = 20f;
-	private final static float SENSOR_OFFSET = 10f;
+	private final static float SENSOR_OFFSET = 15f;
 	private final static int SENSOR_SIZE = 1;
-	private final static float TURN_SPEED = 0.2f;
+	private final static float TURN_SPEED = 0.02f;
 
 	public Agent() {
 		float radius = (height / 2 - 10) * (float) Math.sqrt(r.nextFloat());
@@ -30,6 +30,9 @@ public class Agent {
 		
 		posX = width / 2 + radius * MathUtils.cos(theta);
 		posY = height / 2 + radius * MathUtils.sin(theta);
+		
+//		posX = r.nextFloat() * width;
+//		posY = r.nextFloat() * height;
 
 		angle = (float) Math.atan2(height / 2 - posY, width / 2 - posX);
 	}

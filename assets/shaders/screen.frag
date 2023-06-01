@@ -12,7 +12,7 @@ uniform sampler2D agents;
 layout(location=0) out vec4 fragColor;
 
 const float diffuseRate = 5f;
-const float decayRate = 1f;
+const float decayRate =0.1f;
 
 const int white = 16777215;
 
